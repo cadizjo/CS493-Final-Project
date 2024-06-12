@@ -11,6 +11,10 @@ docker run -d --name mysql-server-final \
 	-e "MYSQL_USER=finalteam47" \
 	-e "MYSQL_PASSWORD=hunter2" \
 	mysql
+docker run -d --name redis-server \
+	--network final-net \
+	-p 6379:6379 \
+	redis
 sleep 8
 docker run -d --name final-api \
 	--network final-net \
