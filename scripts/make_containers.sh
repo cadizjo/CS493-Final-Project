@@ -15,5 +15,6 @@ sleep 8
 docker run -d --name final-api \
 	--network final-net \
 	-e "PORT=8000" \
+	-e "MYSQL_HOST=mysql-server-final" \
 	-p 8000:8000 \
 	final-api
