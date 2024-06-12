@@ -18,6 +18,5 @@ exports.Submission = Submission
  */
 exports.SubmissionClientFields = [
     'assignmentId',
-    'studentId',
-    'file'
+    'studentId'
 ]
