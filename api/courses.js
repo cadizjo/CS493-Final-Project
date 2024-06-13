@@ -234,16 +234,33 @@ router.get('/courses/:id/students', async (req, res) => {
 
 /*
  * Post /courses/{id}/students
- * Adds a student to a course and adds that course to the student.
+ * Adds or Removes students to a course and adds or removes that course for the student.
  */
 router.post('/courses/:id/students', async (req, res) => {
+    const courseId = req.params.id;
+    const { add, remove } = req.body;
+
     try {
-        const { studentId } = req.body;
-        const enrollment = await Enrollment.create({
-            userId: studentId,
-            courseId: req.params.id
-        });
-        res.status(201).json(enrollment);
+        // Remove students
+        if (remove && remove.length) {
+            await Enrollment.destroy({
+                where: {
+                    courseId: courseId,
+                    userId: remove
+                },
+                transaction: transaction
+            });
+        }
+
+        // Add students
+        if (add && add.length) {
+            const newEnrollments = add.map(userId => ({
+                courseId: courseId,
+                userId: userId
+            }));
+            await Enrollment.bulkCreate(newEnrollments);
+        }
+        res.status(201).send('Updated roster successfully');
     } catch (error) {
         if (error.name === 'SequelizeForeignKeyConstraintError') {
             res.status(404).send('Invalid course ID or student ID');
