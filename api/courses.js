@@ -1,7 +1,8 @@
 const { Router } = require('express')
 const { ValidationError } = require('sequelize')
 
-const {Course, CourseClientFields} = require('../models/course');
+const { Course, CourseClientFields } = require('../models/course')
+const { ValidationError } = require('sequelize')
 
 const { requireAuthentication } = require('../lib/auth')
 
@@ -12,20 +13,79 @@ const router = Router()
  * Route to fetch list of courses
  */
 router.get('/', async (req, res, next) => {
-    const { page = 1, limit = 10 } = req.query;
+    const { subject, number, term } = req.query
+
+    let filterConditions = {}
+    if (subject) { 
+        filterConditions.subject = subject 
+    }
+    if (number) { 
+        filterConditions.number = number 
+    }
+    if (term) { 
+        filterConditions.term = term 
+    }
+
+    const numPerPage = 10
+    const totalRows = await Course.count({
+        where: filterConditions
+    })
+    const lastPage = Math.ceil(totalRows / numPerPage)
+
+    let page = parseInt(req.query.page) || 1
+    page = page < 1 ? 1 : page
+    page = page > lastPage ? lastPage : page
+
+    const offset = (page - 1) * numPerPage
+
     try {
-        const { count, rows } = await Course.findAndCountAll({
-            offset: (page - 1) * limit,
-            limit: parseInt(limit)
-        });
-        res.json({
-            courses: rows,
-            totalCourses: count,
-            totalPages: Math.ceil(count / limit),
-            currentPage: parseInt(page)
-        });
-    } catch (error) {
-        next(error)
+        const result = await Course.findAndCountAll({
+            where: filterConditions,
+            limit: numPerPage,
+            offset: offset
+        })
+
+        /*
+         * Generate HATEOAS links for surrounding pages.
+         */
+        const links = {}
+        if (page < lastPage) {
+            links.nextPage = `/courses?page=${page + 1}`
+            links.lastPage = `/courses?page=${lastPage}`
+        }
+        if (page > 1) {
+            links.prevPage = `/courses?page=${page - 1}`
+            links.firstPage = `/courses?page=1`
+        }
+        if (subject) {
+            for (let key in links) { // loop thru each property of the 'links' object
+                links[key] += `&subject=${subject}`
+            }
+        }
+        if (number) {
+            for (let key in links) { // loop thru each property of the 'links' object
+                links[key] += `&number=${number}`
+            }
+        }
+        if (term) {
+            for (let key in links) { // loop thru each property of the 'links' object
+                links[key] += `&term=${term}`
+            }
+        }
+
+        /*
+         * Construct and send response.
+         */
+        res.status(200).send({
+            courses: result.rows,
+            pageNumber: page,
+            totalPages: lastPage,
+            pageSize: numPerPage,
+            totalCount: result.count,
+            links: links
+        })
+    } catch (e) {
+        next(e)
     }
 });
 
@@ -56,18 +116,19 @@ router.post('/', requireAuthentication, async (req, res, next) => {
  * GET /courses/{id}
  * Route to fetch info of specific course
  */
-router.get('/:id', async (req, res, next) => {
+router.get('/:courseId', async (req, res, next) => {
+    const { courseId } = req.params
     try {
-        const course = await Course.findByPk(req.params.id);
+        const course = await Course.findByPk(courseId)
         if (course) {
-            res.json(course);
+            res.status(200).send(course)
         } else {
             next()
         }
-    } catch (error) {
-        next(error)
+    } catch (e) {
+        next(e)
     }
-});
+})
 
 /*
  * PATCH /courses/{id}
@@ -86,10 +147,11 @@ router.patch('/:id', requireAuthentication, async (req, res, next) => {
     if (authorized) {
         try {
             const updated = await Course.update(req.body, {
-                where: { id: req.params.id }
+                where: { id: req.params.id },
+                fields: CourseClientFields
             });
             if (updated[0] > 0) {
-                res.json(await Course.findByPk(req.params.id));
+                res.status(204).send()
             } else {
                 next()
             }
@@ -107,28 +169,32 @@ router.patch('/:id', requireAuthentication, async (req, res, next) => {
     }
 });
 
-
 /*
  * DELETE /courses/{id}
  * Route to delete course
  */
-router.delete('/:id', requireAuthentication, async (req, res, next) => {
+router.delete('/:courseId', requireAuthentication, async (req, res, next) => {
     if (req.role !== 'admin') {
         res.status(403).send({
             error: "Not authorized to access the specified resource"
         })
     } else {
+        const { courseId } = req.params
+        let result = null
         try {
-            const deleted = await Course.destroy({
-                where: { id: req.params.id }
-            });
-            if (deleted) {
-                res.status(204).send();
-            } else {
+            result = await Course.findByPk(courseId)
+            if (result == null) {
                 next()
+            } else {
+                result = await Course.destroy({ where: { id: courseId } })
+                if (result > 0) {
+                    res.status(204).send()
+                } else {
+                    next()
+                }
             }
-        } catch (error) {
-            next(error)
+        } catch (e) {
+            next(e)
         }
     }
 });

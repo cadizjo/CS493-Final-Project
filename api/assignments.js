@@ -7,65 +7,84 @@ const { ValidationError } = require('sequelize')
 
 const router = Router()
 
-router.get('/courses/:id/assignments', async (req, res) => {
-    try {
-        const assignments = await Assignment.findAll({
-            where: { courseId: req.params.id }
-        });
-        res.json(assignments);
-    } catch (error) {
-        res.status(500).send(error.message);
-    }
-});
-
-
-router.post('/assignments', async (req, res) => {
+router.post('/', async (req, res, next) => {
     try {
         const assignment = await Assignment.create(req.body, AssignmentClientFields);
-        res.status(201).json(assignment);
-    } catch (error) {
-        res.status(400).send(error.message);
-    }
-});
-
-
-router.patch('/assignments/:assignmentId', async (req, res) => {
-    try {
-        const updated = await Assignment.update(req.body, {
-            where: { id: req.params.assignmentId }
-        });
-        if (updated[0] > 0) {
-            res.json(await Assignment.findByPk(req.params.assignmentId));
+        res.status(201).send({ id: assignment.id })
+    } catch (e) {
+        if (e instanceof ValidationError) {
+            res.status(400).send({ error: e.message })
         } else {
-            res.status(404).send('Assignment not found');
+            next(e)
         }
-    } catch (error) {
-        res.status(400).send(error.message);
     }
-});
+})
 
-
-router.delete('/assignments/:assignmentId', async (req, res) => {
+router.get('/:assignmentId', async (req, res, next) => {
+    const { assignmentId } = req.params
     try {
-        const deleted = await Assignment.destroy({
-            where: { id: req.params.assignmentId }
-        });
-        if (deleted) {
-            res.status(204).send();
+        const assignment = await Assignment.findByPk(assignmentId)
+        if (assignment) {
+            res.status(200).send(assignment)
         } else {
-            res.status(404).send('Assignment not found');
+            next()
         }
-    } catch (error) {
-        res.status(500).send(error.message);
+    } catch (e) {
+        next(e)
     }
 });
 
-router.get('/assignments/:assignmentId/submissions', async (req, res, next) => {
+
+router.patch('/:assignmentId', async (req, res, next) => {
+    const { assignmentId } = req.params
+    let result = null
+    try {
+        result = await Assignment.findByPk(assignmentId)
+        if (result == null) {
+            next()
+        } else {
+            result = await Assignment.update(req.body, {
+                where: { id: assignmentId },
+                fields: AssignmentClientFields
+            })
+            if (result[0] > 0) {
+                res.status(204).send()
+            } else {
+                next()
+            }
+        }
+    } catch (e) {
+        next(e)
+    }
+});
+
+
+router.delete('/:assignmentId', async (req, res, next) => {
+    const { assignmentId } = req.params
+    let result = null
+    try {
+        result = await Assignment.findByPk(assignmentId)
+        if (result == null) {
+            next()
+        } else {
+            result = await Assignment.destroy({ where: { id: assignmentId } })
+            if (result > 0) {
+                res.status(204).send()
+            } else {
+                next()
+            }
+        }
+    } catch (e) {
+        next(e)
+    }
+});
+
+router.get('/:assignmentId/submissions', async (req, res, next) => {
     // requires authentication
     const { assignmentId } = req.params
     const { studentId } = req.query
 
-    const filterConditions = { assignmentId: assignmentId }
+    let filterConditions = { assignmentId: assignmentId }
     if (studentId) { 
         filterConditions.studentId = studentId 
     }
@@ -138,7 +157,7 @@ router.get('/assignments/:assignmentId/submissions', async (req, res, next) => {
     }
 })
 
-router.post('/assignments/:assignmentId/submissions', upload.single("file"), async (req, res, next) => {
+router.post('/:assignmentId/submissions', upload.single("file"), async (req, res, next) => {
     // requires authentication
     const { assignmentId } = req.params
     if (req.file && req.body) {
@@ -171,3 +190,5 @@ router.post('/assignments/:assignmentId/submissions', upload.single("file"), asy
         })
     }
 })
+
+module.exports = router
