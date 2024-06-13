@@ -281,7 +281,6 @@ router.post('/:id/students', requireAuthentication, rateLimitByUser, async (req,
                         courseId: courseId,
                         userId: remove
                     },
-                    transaction: transaction
                 });
             }
     
