@@ -212,7 +212,7 @@ router.delete('/:courseId', requireAuthentication, rateLimitByUser, async (req, 
  * GET /courses/{id}/students
  * get a list of students in a course
  */
-router.get('/:id/students', rateLimitByUser, async (req, res) => {
+router.get('/:id/students', rateLimitByUser, async (req, res, next) => {
     try {
         const course = await Course.findByPk(req.params.id, {
             include: [{
@@ -223,7 +223,7 @@ router.get('/:id/students', rateLimitByUser, async (req, res) => {
             }]
         });
         if (course) {
-            res.json(course.users); 
+            res.status(200).send(course.users); 
         } else {
             next()
         }
@@ -237,7 +237,7 @@ router.get('/:id/students', rateLimitByUser, async (req, res) => {
  * Post /courses/{id}/students
  * Adds a student to a course and adds that course to the student.
  */
-router.post('/:id/students', rateLimitByUser, async (req, res) => {
+router.post('/:id/students', rateLimitByUser, async (req, res, next) => {
     try {
         const { studentId } = req.body;
         const enrollment = await Enrollment.create({
@@ -259,7 +259,7 @@ router.post('/:id/students', rateLimitByUser, async (req, res) => {
  * GET /courses/{id}/roster
  * get a list of students in a course and adds them to a CSV file to download.
  */
-router.get('/:id/roster', rateLimitByUser, async (req, res) => {
+router.get('/:id/roster', rateLimitByUser, async (req, res, next) => {
     try {
         const course = await Course.findByPk(req.params.id, {
             include: [{
@@ -277,7 +277,7 @@ router.get('/:id/roster', rateLimitByUser, async (req, res) => {
 
             res.header('Content-Type', 'text/csv');
             res.attachment('roster.csv');
-            res.send(csv);
+            res.status(200).send(csv);
             
         } else {
             next()
@@ -292,12 +292,12 @@ router.get('/:id/roster', rateLimitByUser, async (req, res) => {
  * GET /courses/{id}/assignments
  * get a list of assignments in a course
  */
-router.get('/:id/assignments', rateLimitByIp, async (req, res) => {
+router.get('/:id/assignments', rateLimitByIp, async (req, res, next) => {
     try {
         const assignments = await Assignment.findAll({
             where: { courseId: req.params.id }
         });
-        res.json(assignments);
+        res.status(200).send(assignments);
     } catch (error) {
         next(error)
     }
