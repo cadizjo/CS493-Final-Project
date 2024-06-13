@@ -255,36 +255,44 @@ router.post('/:assignmentId/submissions', requireAuthentication, rateLimitByUser
         if (await Enrollment.findOne({ where: {courseId: assignment.courseId, userId: req.user} }))
             authorized = true
     }
-    
-    if (req.file && req.body) {
-        try {
-            const submission = await Submission.create(
-                {
-                    filename: req.file.filename,
-                    path: req.file.path,
-                    contentType: req.file.mimetype,
-                    assignmentId: assignmentId,
-                    timestamp: new Date().toISOString(),
-                    ...req.body
-                },
-                SubmissionClientFields
-            )
-            res.status(201).send({ id: submission.id })
 
-        } catch(e) {
-            if (e instanceof ValidationError) {
-                res.status(400).send({
-                    error: "Request needs assignmentId and studentId"
-                })
-            } else {
-                next(e)
+    if (authorized) {
+        if (req.file && req.body) {
+            try {
+                const submission = await Submission.create(
+                    {
+                        filename: req.file.filename,
+                        path: req.file.path,
+                        contentType: req.file.mimetype,
+                        assignmentId: assignmentId,
+                        timestamp: new Date().toISOString(),
+                        ...req.body
+                    },
+                    SubmissionClientFields
+                )
+                res.status(201).send({ id: submission.id })
+    
+            } catch(e) {
+                if (e instanceof ValidationError) {
+                    res.status(400).send({
+                        error: "Request needs assignmentId and studentId"
+                    })
+                } else {
+                    next(e)
+                }
             }
+        } else {
+            res.status(400).send({
+                error: "Request needs a valid 'file'"
+            })
         }
     } else {
-        res.status(400).send({
-            error: "Request needs a valid 'file'"
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
         })
     }
+    
+    
 })
 
 module.exports = router
