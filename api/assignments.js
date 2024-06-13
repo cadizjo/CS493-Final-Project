@@ -8,6 +8,7 @@ const { ValidationError } = require('sequelize')
 
 const { requireAuthentication } = require('../lib/auth')
 const { redisClient, rateLimitByIp, rateLimitByUser } = require('../lib/redis')
+const { Enrollment } = require('../models/enrollment')
 
 const router = Router()
 
@@ -143,7 +144,6 @@ router.delete('/:assignmentId', requireAuthentication, rateLimitByUser, async (r
 });
 
 router.get('/:assignmentId/submissions', requireAuthentication, rateLimitByUser, async (req, res, next) => {
-    // requires authentication
     const { assignmentId } = req.params
     const { studentId } = req.query
 
@@ -242,9 +242,20 @@ router.get('/:assignmentId/submissions', requireAuthentication, rateLimitByUser,
     }
 })
 
-router.post('/:assignmentId/submissions', rateLimitByUser, upload.single("file"), async (req, res, next) => {
-    // requires authentication
+router.post('/:assignmentId/submissions', requireAuthentication, rateLimitByUser, upload.single("file"), async (req, res, next) => {
+    // authentication
     const { assignmentId } = req.params
+
+    let authorized = false
+    if (req.role === 'student' ) {
+        const assignment = await Assignment.findByPk(assignmentId)
+        if (!assignment) {
+            next()
+        }
+        if (await Enrollment.findOne({ where: {courseId: assignment.courseId, userId: req.user} }))
+            authorized = true
+    }
+    
     if (req.file && req.body) {
         try {
             const submission = await Submission.create(
