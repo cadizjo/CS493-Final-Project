@@ -84,7 +84,7 @@ router.get('/:assignmentId/submissions', async (req, res, next) => {
     const { assignmentId } = req.params
     const { studentId } = req.query
 
-    const filterConditions = { assignmentId: assignmentId }
+    let filterConditions = { assignmentId: assignmentId }
     if (studentId) { 
         filterConditions.studentId = studentId 
     }
