@@ -3,11 +3,11 @@ const { DataTypes } = require('sequelize')
 const sequelize = require('../lib/sequelize')
 
 const Submission = sequelize.define('submission', {
-    assignmentId: { type: DataTypes.INTEGER, allowNull: false },
-    studentId: { type: DataTypes.INTEGER, allowNull: false },
     timestamp: { type: DataTypes.DATE, allowNull: false },
-    grade: { type: DataTypes.FLOAT, allowNull: false },
-    file: { type: DataTypes.STRING, allowNull: false }
+    grade: { type: DataTypes.FLOAT, allowNull: true },
+    filename: { type: DataTypes.STRING, allowNull: false },
+    path: { type: DataTypes.STRING, allowNull: false },
+    contentType: { type: DataTypes.STRING, allowNull: false }
 })
 
 exports.Submission = Submission
@@ -18,6 +18,5 @@ exports.Submission = Submission
  */
 exports.SubmissionClientFields = [
     'assignmentId',
-    'studentId',
-    'file'
+    'studentId'
 ]

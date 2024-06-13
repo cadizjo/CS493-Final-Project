@@ -1,8 +1,8 @@
 const { DataTypes } = require('sequelize')
 
 const sequelize = require('../lib/sequelize')
-const { Course } = require('./courses')
-const { Submission } = require('./submissions')
+const { Course } = require('./course')
+const { Submission } = require('./submission')
 
 const bcrypt = require('bcryptjs')
 
