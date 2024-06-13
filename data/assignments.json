@@ -1,26 +1,38 @@
 [
     {
-        "courseId": "1",
-        "title": "homework1",
-        "points": "100",
-        "due": "2022-06-14T17:00:00-07:00"
+        "courseId": 1,
+        "title": "Assignment 1",
+        "points": 100,
+        "due": "2024-06-14T17:00:00-07:00"
     },
     {
-        "courseId": "1",
-        "title": "homework2",
-        "points": "100",
-        "due": "2022-06-15T17:00:00-07:00"
+        "courseId": 1,
+        "title": "Assignment 2",
+        "points": 100,
+        "due": "2024-06-20T17:00:00-08:00"
     },
     {
-        "courseId": "3",
-        "title": "essay",
-        "points": "50",
-        "due": "2024-02-15T17:00:00-07:00"
+        "courseId": 2,
+        "title": "Assignment 1",
+        "points": 200,
+        "due": "2024-06-12T17:00:00-07:00"
     },
     {
-        "courseId": "4",
-        "title": "lab",
-        "points": "200",
-        "due": "2024-03-15T17:00:00-07:00"
+        "courseId": 2,
+        "title": "Assignment 2",
+        "points": 200,
+        "due": "2024-06-10T17:00:00-08:00"
+    },
+    {
+        "courseId": 3,
+        "title": "Assignment 1",
+        "points": 1000,
+        "due": "2022-06-09T17:00:00-07:00"
+    },
+    {
+        "courseId": 3,
+        "title": "Assignment 2",
+        "points": 1000,
+        "due": "2022-06-30T17:00:00-08:00"
     }
 ]
