@@ -2,6 +2,8 @@ const { Router } = require('express')
 const { ValidationError } = require('sequelize')
 
 const { User, UserClientFields, validateCredentials } = require('../models/user')
+const { Course } = require('../models/course')
+const { Enrollment } = require('../models/enrollment')
 
 const { generateAuthToken, requireAuthentication } = require('../lib/auth')
 
@@ -72,22 +74,31 @@ router.get('/:userId', requireAuthentication, async function (req, res, next) {
     }
     else {
         try {
-            const user = await User.findByPk(req.params.userId)
+            const user = await User.findByPk(req.params.userId, { 
+                include: [Course]
+            })
             if (user) {
-                const userInfoResponse = {
-                    id: user.id,
+                let userInfoResponse = {
                     name: user.name,
                     email: user.email,
                     role: user.role
                 }
 
                 if (user.role === 'instructor') {
-                    // no implementation
-                    console.log("user is instructor")
+                    let courses = []
+                    for (let course in user.courses) {
+                        courses.push(course.id)
+                    }
+                    userInfoResponse.courses = courses
                 }
                 else if (user.role === 'student') {
-                    // no implementation
-                    console.log("user is student")
+                    let courses = []
+
+                    const enrollments = await Enrollment.findAll({ where: { userId: user.id } })
+                    for (let enrollment in enrollments) {
+                        courses.push(enrollment.courseId)
+                    }
+                    userInfoResponse.courses = courses
                 }
 
                 res.status(200).send(userInfoResponse)
