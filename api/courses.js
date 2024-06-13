@@ -253,7 +253,7 @@ router.get('/:id/students', requireAuthentication, rateLimitByUser, async (req, 
 
 /*
  * Post /courses/{id}/students
- * Adds a student to a course and adds that course to the student.
+ * Adds or Removes students to a course and adds or removes that course for the student.
  */
 router.post('/:id/students', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     // first verify that user is authorized to access resource
@@ -270,13 +270,29 @@ router.post('/:id/students', requireAuthentication, rateLimitByUser, async (req,
 
     if (authorized) {
     
+        const courseId = req.params.id;
+        const { add, remove } = req.body;
+    
         try {
-            const { studentId } = req.body;
-            const enrollment = await Enrollment.create({
-                userId: studentId,
-                courseId: req.params.id
-            });
-            res.status(201).json(enrollment);
+            // Remove students
+            if (remove && remove.length) {
+                await Enrollment.destroy({
+                    where: {
+                        courseId: courseId,
+                        userId: remove
+                    },
+                });
+            }
+    
+            // Add students
+            if (add && add.length) {
+                const newEnrollments = add.map(userId => ({
+                    courseId: courseId,
+                    userId: userId
+                }));
+                await Enrollment.bulkCreate(newEnrollments);
+            }
+            res.status(201).send('Updated roster successfully');
         } catch (error) {
             if (error.name === 'SequelizeForeignKeyConstraintError') {
                 next()
