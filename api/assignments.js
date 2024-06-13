@@ -64,7 +64,7 @@ router.patch('/:assignmentId', requireAuthentication, async (req, res, next) => 
     if (req.role === 'admin' ) {
         authorized = true
     } else if (req.role === 'instructor') {
-        const assignment = await Assignment.findByPk(assignmentId, { include: Course })
+        const assignment = await Assignment.findByPk(assignmentId, { include: [ Course ] })
         if (!assignment) {
             next()
         }
@@ -109,7 +109,7 @@ router.delete('/:assignmentId', requireAuthentication, async (req, res, next) =>
     if (req.role === 'admin' ) {
         authorized = true
     } else if (req.role === 'instructor') {
-        const assignment = await Assignment.findByPk(assignmentId, { include: Course })
+        const assignment = await Assignment.findByPk(assignmentId, { include: [ Course ] })
         if (!assignment) {
             next()
         }
