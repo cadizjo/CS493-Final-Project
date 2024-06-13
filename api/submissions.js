@@ -1,7 +1,5 @@
 const { Router } = require('express')
 const { Submission } = require('../models/submission');
-const path = require('path');
-const { upload } = require('../lib/multer');
 
 const router = Router()
 
