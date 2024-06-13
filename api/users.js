@@ -75,34 +75,26 @@ router.get('/:userId', requireAuthentication, rateLimitByUser, async function (r
     }
     else {
         try {
-            const user = await User.findByPk(req.params.userId, { 
-                include: [Course]
-            })
+            let user = await User.findByPk(req.params.userId)
             if (user) {
-                let userInfoResponse = {
-                    name: user.name,
-                    email: user.email,
-                    role: user.role
-                }
-
                 if (user.role === 'instructor') {
-                    let courses = []
-                    for (let course in user.courses) {
-                        courses.push(course.id)
-                    }
-                    userInfoResponse.courses = courses
+                    const courses = await Course.findAll({ where: {instructorId: req.params.userId }})
+                    res.status(200).send({...user.dataValues, courses: courses })
                 }
                 else if (user.role === 'student') {
-                    let courses = []
-
-                    const enrollments = await Enrollment.findAll({ where: { userId: user.id } })
-                    for (let enrollment in enrollments) {
-                        courses.push(enrollment.courseId)
-                    }
-                    userInfoResponse.courses = courses
+                    user = await User.findByPk(req.params.userId, {
+                        include: [{
+                            model: Course,
+                            as: 'courses',
+                            through: { model: Enrollment, attributes: [] }
+                        }]
+                    })
+                    res.status(200).send(user)
                 }
-
-                res.status(200).send(userInfoResponse)
+                else {
+                    res.status(200).send(user)
+                }
+                
             } else {
                 next()
             }
