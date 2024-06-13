@@ -5,82 +5,207 @@ const {Assignment} = require('../models/assignment');
 const {Enrollment} = require('../models/enrollment');
 const {User} = require('../models/user');
 const { parse } = require('json2csv');
+const { ValidationError } = require('sequelize');
+
+const { requireAuthentication } = require('../lib/auth');
 
 const router = Router()
 
-router.get('/courses', async (req, res) => {
-    const { page = 1, limit = 10 } = req.query;
+/*
+ * GET /courses
+ * Route to fetch list of courses
+ */
+router.get('/', async (req, res, next) => {
+    const { subject, number, term } = req.query
+
+    let filterConditions = {}
+    if (subject) { 
+        filterConditions.subject = subject 
+    }
+    if (number) { 
+        filterConditions.number = number 
+    }
+    if (term) { 
+        filterConditions.term = term 
+    }
+
+    const numPerPage = 10
+    const totalRows = await Course.count({
+        where: filterConditions
+    })
+    const lastPage = Math.ceil(totalRows / numPerPage)
+
+    let page = parseInt(req.query.page) || 1
+    page = page < 1 ? 1 : page
+    page = page > lastPage ? lastPage : page
+
+    const offset = (page - 1) * numPerPage
+
     try {
-        const { count, rows } = await Course.findAndCountAll({
-            offset: (page - 1) * limit,
-            limit: parseInt(limit)
-        });
-        res.json({
-            courses: rows,
-            totalCourses: count,
-            totalPages: Math.ceil(count / limit),
-            currentPage: parseInt(page)
-        });
-    } catch (error) {
-        res.status(500).send(error.message);
+        const result = await Course.findAndCountAll({
+            where: filterConditions,
+            limit: numPerPage,
+            offset: offset
+        })
+
+        /*
+         * Generate HATEOAS links for surrounding pages.
+         */
+        const links = {}
+        if (page < lastPage) {
+            links.nextPage = `/courses?page=${page + 1}`
+            links.lastPage = `/courses?page=${lastPage}`
+        }
+        if (page > 1) {
+            links.prevPage = `/courses?page=${page - 1}`
+            links.firstPage = `/courses?page=1`
+        }
+        if (subject) {
+            for (let key in links) { // loop thru each property of the 'links' object
+                links[key] += `&subject=${subject}`
+            }
+        }
+        if (number) {
+            for (let key in links) { // loop thru each property of the 'links' object
+                links[key] += `&number=${number}`
+            }
+        }
+        if (term) {
+            for (let key in links) { // loop thru each property of the 'links' object
+                links[key] += `&term=${term}`
+            }
+        }
+
+        /*
+         * Construct and send response.
+         */
+        res.status(200).send({
+            courses: result.rows,
+            pageNumber: page,
+            totalPages: lastPage,
+            pageSize: numPerPage,
+            totalCount: result.count,
+            links: links
+        })
+    } catch (e) {
+        next(e)
     }
 });
 
+/*
+ * POST /courses
+ * Route to create new course
+ */
+router.post('/', requireAuthentication, async (req, res, next) => {
+    if (req.role !== 'admin') {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
+    } else {
+        try {
+            const course = await Course.create(req.body, CourseClientFields);
+            res.status(201).send({ id: course.id });
+        } catch (error) {
+            if (error instanceof ValidationError) {
+                res.status(400).send({ error: error.message })
+            } else {
+                next(error)
+            }
+        }
+    }
+});
 
-router.get('/courses/:id', async (req, res) => {
+/*
+ * GET /courses/{id}
+ * Route to fetch info of specific course
+ */
+router.get('/:courseId', async (req, res, next) => {
+    const { courseId } = req.params
     try {
-        const course = await Course.findByPk(req.params.id);
+        const course = await Course.findByPk(courseId)
         if (course) {
-            res.json(course);
+            res.status(200).send(course)
         } else {
-            res.status(404).send('Course not found');
+            next()
         }
-    } catch (error) {
-        res.status(500).send(error.message);
+    } catch (e) {
+        next(e)
     }
-});
+})
 
-
-router.post('/courses', async (req, res) => {
-    try {
-        const course = await Course.create(req.body, CourseClientFields);
-        res.status(201).json(course);
-    } catch (error) {
-        res.status(400).send(error.message);
+/*
+ * PATCH /courses/{id}
+ * Route to update info of specific course
+ */
+router.patch('/:id', requireAuthentication, async (req, res, next) => {
+    // first verify that user is authorized to access resource
+    let authorized = false
+    if (req.role === 'admin' ) {
+        authorized = true
+    } else if (req.role == 'instructor') {
+        const course = await Course.findOne({ where: { id: req.params.id, instructorId: req.user }})
+        if (!course)
+            next()
+        else
+            authorized = true
     }
-});
 
-
-router.patch('/courses/:id', async (req, res) => {
-    try {
-        const updated = await Course.update(req.body, {
-            where: { id: req.params.id }
-        });
-        if (updated[0] > 0) {
-            res.json(await Course.findByPk(req.params.id));
-        } else {
-            res.status(404).send('Course not found');
+    if (authorized) {
+        try {
+            const updated = await Course.update(req.body, {
+                where: { id: req.params.id },
+                fields: CourseClientFields
+            });
+            if (updated[0] > 0) {
+                res.status(204).send()
+            } else {
+                next()
+            }
+        } catch (error) {
+            if (error instanceof ValidationError) {
+                res.status(400).send({ error: error.message })
+            } else {
+                next(error)
+            }
         }
-    } catch (error) {
-        res.status(400).send(error.message);
+    } else {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
     }
 });
 
-
-router.delete('/courses/:id', async (req, res) => {
-    try {
-        const deleted = await Course.destroy({
-            where: { id: req.params.id }
-        });
-        if (deleted) {
-            res.status(204).send();
-        } else {
-            res.status(404).send('Course not found');
+/*
+ * DELETE /courses/{id}
+ * Route to delete course
+ */
+router.delete('/:courseId', requireAuthentication, async (req, res, next) => {
+    if (req.role !== 'admin') {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
+    } else {
+        const { courseId } = req.params
+        let result = null
+        try {
+            result = await Course.findByPk(courseId)
+            if (result == null) {
+                next()
+            } else {
+                result = await Course.destroy({ where: { id: courseId } })
+                if (result > 0) {
+                    res.status(204).send()
+                } else {
+                    next()
+                }
+            }
+        } catch (e) {
+            next(e)
         }
-    } catch (error) {
-        res.status(500).send(error.message);
     }
 });
+
+
 
 
 router.get('/courses/:id/students', async (req, res) => {
@@ -161,3 +286,4 @@ router.get('/courses/:id/assignments', async (req, res) => {
         res.status(500).send(error.message);
     }
 });
+module.exports = router

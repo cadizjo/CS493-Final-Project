@@ -1,0 +1,37 @@
+[
+    {
+        "subject": "MATH",
+        "number": "101",
+        "title": "geometry",
+        "term": "fall",
+        "instructorId": "4"
+    },
+    {
+        "subject": "MATH",
+        "number": "222",
+        "title": "geometry 2",
+        "term": "winter",
+        "instructorId": "4"
+    },
+    {
+        "subject": "SCI",
+        "number": "211",
+        "title": "physics",
+        "term": "fall",
+        "instructorId": "5"
+    },
+    {
+        "subject": "HIST",
+        "number": "111",
+        "title": "american history",
+        "term": "fall",
+        "instructorId": "6"
+    },
+    {
+        "subject": "CS",
+        "number": "101",
+        "title": "programming",
+        "term": "fall",
+        "instructorId": "7"
+    }
+]

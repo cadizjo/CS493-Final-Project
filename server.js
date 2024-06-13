@@ -5,6 +5,7 @@ const morgan = require('morgan')
 
 const api = require('./api')
 const sequelize = require('./lib/sequelize')
+const { redisClient } = require('./lib/redis')
 
 const app = express()
 const port = process.env.PORT || 8000
@@ -17,6 +18,9 @@ app.use(express.json())
  * All API routes go to api/ directory
  */
 app.use('/', api)
+
+// middleware to download static submissions in server's filesystem
+app.use("/media/submissions", express.static(`${__dirname}/lib/submissions`))
 
 /*
  * Resource not found
@@ -38,10 +42,12 @@ app.use('*', function (err, req, res, next) {
 })
 
 /*
- * Connect to MySQL server then start API server
+ * Connect to MySQL and Redis server then start API server
  */
 sequelize.sync().then(function () {
-	app.listen(port, function () {
-		console.log("== Server is running on port", port)
+	redisClient.connect().then(() => {
+		app.listen(port, function () {
+			console.log("== Server is running on port", port)
+		})
 	})
 })

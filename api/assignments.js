@@ -3,69 +3,150 @@ const upload = require("../lib/multer")
 
 const { Assignment, AssignmentClientFields} = require('../models/assignment')
 const { Submission, SubmissionClientFields } = require('../models/submission')
+const { Course } = require('../models/course')
 const { ValidationError } = require('sequelize')
+
+const { requireAuthentication } = require('../lib/auth')
 
 const router = Router()
 
-router.get('/courses/:id/assignments', async (req, res) => {
-    try {
-        const assignments = await Assignment.findAll({
-            where: { courseId: req.params.id }
-        });
-        res.json(assignments);
-    } catch (error) {
-        res.status(500).send(error.message);
-    }
-});
-
-
-router.post('/assignments', async (req, res) => {
-    try {
-        const assignment = await Assignment.create(req.body, AssignmentClientFields);
-        res.status(201).json(assignment);
-    } catch (error) {
-        res.status(400).send(error.message);
-    }
-});
-
-
-router.patch('/assignments/:assignmentId', async (req, res) => {
-    try {
-        const updated = await Assignment.update(req.body, {
-            where: { id: req.params.assignmentId }
-        });
-        if (updated[0] > 0) {
-            res.json(await Assignment.findByPk(req.params.assignmentId));
-        } else {
-            res.status(404).send('Assignment not found');
+router.post('/', requireAuthentication, async (req, res, next) => {
+    // first verify that user is authorized to access resource
+    let authorized = false
+    if (req.role === 'admin' ) {
+        authorized = true
+    } else if (req.role === 'instructor' && req.body.courseId) {
+        const course = await Course.findByPk(req.body.courseId)
+        if ( course && course.instructorId == req.user) {
+            authorized = true
         }
-    } catch (error) {
-        res.status(400).send(error.message);
     }
-});
 
-
-router.delete('/assignments/:assignmentId', async (req, res) => {
-    try {
-        const deleted = await Assignment.destroy({
-            where: { id: req.params.assignmentId }
-        });
-        if (deleted) {
-            res.status(204).send();
-        } else {
-            res.status(404).send('Assignment not found');
+    if (authorized) {
+        try {
+            const assignment = await Assignment.create(req.body, AssignmentClientFields);
+            res.status(201).send({ id: assignment.id })
+        } catch (e) {
+            if (e instanceof ValidationError) {
+                res.status(400).send({ error: e.message })
+            } else {
+                next(e)
+            }
         }
-    } catch (error) {
-        res.status(500).send(error.message);
+    } else {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
+    }
+})
+
+router.get('/:assignmentId', async (req, res, next) => {
+    const { assignmentId } = req.params
+    try {
+        const assignment = await Assignment.findByPk(assignmentId)
+        if (assignment) {
+            res.status(200).send(assignment)
+        } else {
+            next()
+        }
+    } catch (e) {
+        next(e)
     }
 });
 
-router.get('/assignments/:assignmentId/submissions', async (req, res, next) => {
+
+router.patch('/:assignmentId', requireAuthentication, async (req, res, next) => {
+    const { assignmentId } = req.params
+    let result = null
+
+    // first verify that user is authorized to access resource
+    let authorized = false
+    if (req.role === 'admin' ) {
+        authorized = true
+    } else if (req.role === 'instructor') {
+        const assignment = await Assignment.findByPk(assignmentId, { include: Course })
+        if (!assignment) {
+            next()
+        }
+        if ( assignment.course.instructorId == req.user) {
+            authorized = true
+        }
+    }
+
+    if (authorized) {
+        try {
+            result = await Assignment.findByPk(assignmentId)
+            if (result == null) {
+                next()
+            } else {
+                result = await Assignment.update(req.body, {
+                    where: { id: assignmentId },
+                    fields: AssignmentClientFields
+                })
+                if (result[0] > 0) {
+                    res.status(204).send()
+                } else {
+                    next()
+                }
+            }
+        } catch (e) {
+            next(e)
+        }
+    } else {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
+    }
+});
+
+
+router.delete('/:assignmentId', requireAuthentication, async (req, res, next) => {
+    const { assignmentId } = req.params
+    let result = null
+
+    // first verify that user is authorized to access resource
+    let authorized = false
+    if (req.role === 'admin' ) {
+        authorized = true
+    } else if (req.role === 'instructor') {
+        const assignment = await Assignment.findByPk(assignmentId, { include: Course })
+        if (!assignment) {
+            next()
+        }
+        if ( assignment.course.instructorId == req.user) {
+            authorized = true
+        }
+    }
+
+    if (authorized) {
+        try {
+            result = await Assignment.findByPk(assignmentId)
+            if (result == null) {
+                next()
+            } else {
+                result = await Assignment.destroy({ where: { id: assignmentId } })
+                if (result > 0) {
+                    res.status(204).send()
+                } else {
+                    next()
+                }
+            }
+        } catch (e) {
+            next(e)
+        }
+    } else {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
+    }
+});
+
+router.get('/:assignmentId/submissions', requireAuthentication, async (req, res, next) => {
     // requires authentication
     const { assignmentId } = req.params
     const { studentId } = req.query
 
-    const filterConditions = { assignmentId: assignmentId }
+    let filterConditions = { assignmentId: assignmentId }
     if (studentId) { 
         filterConditions.studentId = studentId 
     }
@@ -83,62 +164,84 @@ router.get('/assignments/:assignmentId/submissions', async (req, res, next) => {
     const offset = (page - 1) * numPerPage
 
     try {
-        const result = await Submission.findAndCountAll({
-            where: filterConditions,
-            limit: numPerPage,
-            offset: offset
-        })
-
-        /*
-         * Ready submissions response body
-         */
-        let submissions = []
-        for (let submission of result.rows) {
-            const { filename, path, contentType, ...submissionMetadata } = submission.get({ plain: true }) // exclude filename, path, contentType in response
-
-            const file = `/media/submissions/${filename}`
-
-            submissions.push({
-                ...submissionMetadata,
-                file: file
-            })
-        }
-
-        /*
-         * Generate HATEOAS links for surrounding pages.
-         */
-        const links = {}
-        if (page < lastPage) {
-            links.nextPage = `/assignments/${assignmentId}/submissions?page=${page + 1}`
-            links.lastPage = `/assignments/${assignmentId}/submissions?page=${lastPage}`
-        }
-        if (page > 1) {
-            links.prevPage = `/assignments/${assignmentId}/submissions?page=${page - 1}`
-            links.firstPage = `/assignments/${assignmentId}/submissions?page=1`
-        }
-        if (studentId) {
-            for (let key in links) { // loop thru each property of the 'links' object
-                links[key] += `&studentId=${studentId}`
+        // first verify that user is authorized to access resource
+        let authorized = false
+        if (req.role === 'admin' ) {
+            authorized = true
+        } else if (req.role === 'instructor') {
+            const assignment = await Assignment.findByPk(assignmentId)
+            if (!assignment) {
+                next()
+            }
+            const course = await Course.findByPk(assignment.courseId)
+            if ( course.instructorId == req.user) {
+                authorized = true
             }
         }
 
-        /*
-         * Construct and send response.
-         */
-        res.status(200).send({
-            submissions: submissions,
-            pageNumber: page,
-            totalPages: lastPage,
-            pageSize: numPerPage,
-            totalCount: result.count,
-            links: links
-        })
+        if (authorized) {
+            
+                const result = await Submission.findAndCountAll({
+                    where: filterConditions,
+                    limit: numPerPage,
+                    offset: offset
+                })
+
+                /*
+                * Ready submissions response body
+                */
+                let submissions = []
+                for (let submission of result.rows) {
+                    const { filename, path, contentType, ...submissionMetadata } = submission.get({ plain: true }) // exclude filename, path, contentType in response
+
+                    const file = `/media/submissions/${filename}`
+
+                    submissions.push({
+                        ...submissionMetadata,
+                        file: file
+                    })
+                }
+
+                /*
+                * Generate HATEOAS links for surrounding pages.
+                */
+                const links = {}
+                if (page < lastPage) {
+                    links.nextPage = `/assignments/${assignmentId}/submissions?page=${page + 1}`
+                    links.lastPage = `/assignments/${assignmentId}/submissions?page=${lastPage}`
+                }
+                if (page > 1) {
+                    links.prevPage = `/assignments/${assignmentId}/submissions?page=${page - 1}`
+                    links.firstPage = `/assignments/${assignmentId}/submissions?page=1`
+                }
+                if (studentId) {
+                    for (let key in links) { // loop thru each property of the 'links' object
+                        links[key] += `&studentId=${studentId}`
+                    }
+                }
+
+                /*
+                * Construct and send response.
+                */
+                res.status(200).send({
+                    submissions: submissions,
+                    pageNumber: page,
+                    totalPages: lastPage,
+                    pageSize: numPerPage,
+                    totalCount: result.count,
+                    links: links
+                })
+        } else {
+            res.status(403).send({
+                error: "Not authorized to access the specified resource"
+            })
+        }
     } catch (e) {
         next(e)
     }
 })
 
-router.post('/assignments/:assignmentId/submissions', upload.single("file"), async (req, res, next) => {
+router.post('/:assignmentId/submissions', upload.single("file"), async (req, res, next) => {
     // requires authentication
     const { assignmentId } = req.params
     if (req.file && req.body) {
@@ -171,3 +274,5 @@ router.post('/assignments/:assignmentId/submissions', upload.single("file"), asy
         })
     }
 })
+
+module.exports = router

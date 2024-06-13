@@ -16,5 +16,53 @@
         "email": "testinstructor@email.com",
         "password": "hunter2",
         "role": "instructor"
+    },
+    {
+        "name": "i1",
+        "email": "i1@email.com",
+        "password": "hunter2",
+        "role": "instructor"
+    },
+    {
+        "name": "i2",
+        "email": "i2@email.com",
+        "password": "hunter2",
+        "role": "instructor"
+    },
+    {
+        "name": "i3",
+        "email": "i3@email.com",
+        "password": "hunter2",
+        "role": "instructor"
+    },
+    {
+        "name": "i4",
+        "email": "i4@email.com",
+        "password": "hunter2",
+        "role": "instructor"
+    },
+    {
+        "name": "s1",
+        "email": "s1@email.com",
+        "password": "hunter2",
+        "role": "student"
+    },
+    {
+        "name": "s2",
+        "email": "s2@email.com",
+        "password": "hunter2",
+        "role": "student"
+    },
+    {
+        "name": "s3",
+        "email": "s3@email.com",
+        "password": "hunter2",
+        "role": "student"
+    },
+    {
+        "name": "s4",
+        "email": "s4@email.com",
+        "password": "hunter2",
+        "role": "student"
     }
 ]
