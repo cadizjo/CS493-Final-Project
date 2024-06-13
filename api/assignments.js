@@ -55,7 +55,7 @@ router.get('/:assignmentId', async (req, res, next) => {
 });
 
 
-router.patch('/:assignmentId', async (req, res, next) => {
+router.patch('/:assignmentId', requireAuthentication, async (req, res, next) => {
     const { assignmentId } = req.params
     let result = null
 
@@ -97,7 +97,7 @@ router.patch('/:assignmentId', async (req, res, next) => {
 });
 
 
-router.delete('/:assignmentId', async (req, res, next) => {
+router.delete('/:assignmentId', requireAuthentication, async (req, res, next) => {
     const { assignmentId } = req.params
     let result = null
 
@@ -135,7 +135,7 @@ router.delete('/:assignmentId', async (req, res, next) => {
     }
 });
 
-router.get('/:assignmentId/submissions', async (req, res, next) => {
+router.get('/:assignmentId/submissions', requireAuthentication, async (req, res, next) => {
     // requires authentication
     const { assignmentId } = req.params
     const { studentId } = req.query
