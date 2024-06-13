@@ -1,5 +1,4 @@
 const { Router } = require('express')
-const { ValidationError } = require('sequelize')
 
 const { Course, CourseClientFields } = require('../models/course')
 const { ValidationError } = require('sequelize')
