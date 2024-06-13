@@ -4,10 +4,11 @@ const { Assignment } = require('../models/assignment');
 const { Course } = require('../models/course');
 
 const { requireAuthentication } = require('../lib/auth')
+const { redisClient, rateLimitByIp, rateLimitByUser } = require('../lib/redis')
 
 const router = Router()
 
-router.patch('/:submissionId', requireAuthentication, async (req, res, next) => {
+router.patch('/:submissionId', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     const { submissionId } = req.params
     let result = null
 

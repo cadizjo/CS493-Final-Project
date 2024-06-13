@@ -7,10 +7,11 @@ const { Course } = require('../models/course')
 const { ValidationError } = require('sequelize')
 
 const { requireAuthentication } = require('../lib/auth')
+const { redisClient, rateLimitByIp, rateLimitByUser } = require('../lib/redis')
 
 const router = Router()
 
-router.post('/', requireAuthentication, async (req, res, next) => {
+router.post('/', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     // first verify that user is authorized to access resource
     let authorized = false
     if (req.role === 'admin' ) {
@@ -40,7 +41,7 @@ router.post('/', requireAuthentication, async (req, res, next) => {
     }
 })
 
-router.get('/:assignmentId', async (req, res, next) => {
+router.get('/:assignmentId', rateLimitByIp, async (req, res, next) => {
     const { assignmentId } = req.params
     try {
         const assignment = await Assignment.findByPk(assignmentId)
@@ -55,7 +56,7 @@ router.get('/:assignmentId', async (req, res, next) => {
 });
 
 
-router.patch('/:assignmentId', requireAuthentication, async (req, res, next) => {
+router.patch('/:assignmentId', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     const { assignmentId } = req.params
     let result = null
 
@@ -100,7 +101,7 @@ router.patch('/:assignmentId', requireAuthentication, async (req, res, next) => 
 });
 
 
-router.delete('/:assignmentId', requireAuthentication, async (req, res, next) => {
+router.delete('/:assignmentId', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     const { assignmentId } = req.params
     let result = null
 
@@ -141,7 +142,7 @@ router.delete('/:assignmentId', requireAuthentication, async (req, res, next) =>
     }
 });
 
-router.get('/:assignmentId/submissions', requireAuthentication, async (req, res, next) => {
+router.get('/:assignmentId/submissions', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     // requires authentication
     const { assignmentId } = req.params
     const { studentId } = req.query
@@ -241,7 +242,7 @@ router.get('/:assignmentId/submissions', requireAuthentication, async (req, res,
     }
 })
 
-router.post('/:assignmentId/submissions', upload.single("file"), async (req, res, next) => {
+router.post('/:assignmentId/submissions', rateLimitByUser, upload.single("file"), async (req, res, next) => {
     // requires authentication
     const { assignmentId } = req.params
     if (req.file && req.body) {

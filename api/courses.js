@@ -8,6 +8,7 @@ const { parse } = require('json2csv');
 const { ValidationError } = require('sequelize');
 
 const { requireAuthentication } = require('../lib/auth');
+const { redisClient, rateLimitByIp, rateLimitByUser } = require('../lib/redis')
 
 const router = Router()
 
@@ -15,7 +16,7 @@ const router = Router()
  * GET /courses
  * Route to fetch list of courses
  */
-router.get('/', async (req, res, next) => {
+router.get('/', rateLimitByIp, async (req, res, next) => {
     const { subject, number, term } = req.query
 
     let filterConditions = {}
@@ -96,7 +97,7 @@ router.get('/', async (req, res, next) => {
  * POST /courses
  * Route to create new course
  */
-router.post('/', requireAuthentication, async (req, res, next) => {
+router.post('/', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     if (req.role !== 'admin') {
         res.status(403).send({
             error: "Not authorized to access the specified resource"
@@ -119,7 +120,7 @@ router.post('/', requireAuthentication, async (req, res, next) => {
  * GET /courses/{id}
  * Route to fetch info of specific course
  */
-router.get('/:courseId', async (req, res, next) => {
+router.get('/:courseId', rateLimitByIp, async (req, res, next) => {
     const { courseId } = req.params
     try {
         const course = await Course.findByPk(courseId)
@@ -137,7 +138,7 @@ router.get('/:courseId', async (req, res, next) => {
  * PATCH /courses/{id}
  * Route to update info of specific course
  */
-router.patch('/:id', requireAuthentication, async (req, res, next) => {
+router.patch('/:id', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     // first verify that user is authorized to access resource
     let authorized = false
     if (req.role === 'admin' ) {
@@ -179,7 +180,7 @@ router.patch('/:id', requireAuthentication, async (req, res, next) => {
  * DELETE /courses/{id}
  * Route to delete course
  */
-router.delete('/:courseId', requireAuthentication, async (req, res, next) => {
+router.delete('/:courseId', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     if (req.role !== 'admin') {
         res.status(403).send({
             error: "Not authorized to access the specified resource"
@@ -211,7 +212,7 @@ router.delete('/:courseId', requireAuthentication, async (req, res, next) => {
  * GET /courses/{id}/students
  * get a list of students in a course
  */
-router.get('/:id/students', async (req, res) => {
+router.get('/:id/students', rateLimitByUser, async (req, res) => {
     try {
         const course = await Course.findByPk(req.params.id, {
             include: [{
@@ -236,7 +237,7 @@ router.get('/:id/students', async (req, res) => {
  * Post /courses/{id}/students
  * Adds a student to a course and adds that course to the student.
  */
-router.post('/:id/students', async (req, res) => {
+router.post('/:id/students', rateLimitByUser, async (req, res) => {
     try {
         const { studentId } = req.body;
         const enrollment = await Enrollment.create({
@@ -246,7 +247,7 @@ router.post('/:id/students', async (req, res) => {
         res.status(201).json(enrollment);
     } catch (error) {
         if (error.name === 'SequelizeForeignKeyConstraintError') {
-            res.status(404).send('Invalid course ID or student ID');
+            next()
         } else {
             next(error)
         }
@@ -258,7 +259,7 @@ router.post('/:id/students', async (req, res) => {
  * GET /courses/{id}/roster
  * get a list of students in a course and adds them to a CSV file to download.
  */
-router.get('/:id/roster', async (req, res) => {
+router.get('/:id/roster', rateLimitByUser, async (req, res) => {
     try {
         const course = await Course.findByPk(req.params.id, {
             include: [{
@@ -291,7 +292,7 @@ router.get('/:id/roster', async (req, res) => {
  * GET /courses/{id}/assignments
  * get a list of assignments in a course
  */
-router.get('/:id/assignments', async (req, res) => {
+router.get('/:id/assignments', rateLimitByIp, async (req, res) => {
     try {
         const assignments = await Assignment.findAll({
             where: { courseId: req.params.id }
@@ -301,4 +302,5 @@ router.get('/:id/assignments', async (req, res) => {
         next(error)
     }
 });
+
 module.exports = router
