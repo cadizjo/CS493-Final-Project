@@ -10,13 +10,16 @@ const sequelize = require('./lib/sequelize')
 const { User, UserClientFields } = require('./models/user')
 const { Assignment, AssignmentClientFields } = require('./models/assignment')
 const { Course, CourseClientFields } = require('./models/course')
+const { Enrollment } = require('./models/enrollment')
 
 const userData = require('./data/users.json')
 const assignmentData = require('./data/assignments.json')
+const enrollmentData = require('./data/enrollments.json')
 const courseData = require('./data/courses.json')
 
 sequelize.sync().then(async function () {
   await User.bulkCreate(userData, { fields: UserClientFields })
   await Course.bulkCreate(courseData, { fields: CourseClientFields })
-  await Assignment.bulkCreate(assignmentData, { fields: AssignmentClientFields })
+  await Enrollment.bulkCreate(enrollmentData)
+  await Assignment.bulkCreate(assignmentData, { fields: AssignmentClientFields }) 
 })
