@@ -2,7 +2,7 @@ const { Router } = require('express')
 const { ValidationError } = require('sequelize')
 
 const { User, UserClientFields, validateCredentials } = require('../models/user')
-const { Course } = require('../models/courses')
+const { Course } = require('../models/course')
 const { Enrollment } = require('../models/enrollment')
 
 const { generateAuthToken, requireAuthentication } = require('../lib/auth')

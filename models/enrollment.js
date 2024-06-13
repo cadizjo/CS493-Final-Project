@@ -1,6 +1,6 @@
 const sequelize = require('../lib/sequelize')
 const { User } = require('../models/user')
-const { Course } = require('../models/courses')
+const { Course } = require('./course')
 
 const Enrollment = sequelize.define('enrollment', {}, { timestamps: false });
 User.belongsToMany(Course, { through: Enrollment });
