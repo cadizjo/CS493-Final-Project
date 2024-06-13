@@ -8,6 +8,7 @@ const { parse } = require('json2csv');
 const { ValidationError } = require('sequelize');
 
 const { requireAuthentication } = require('../lib/auth');
+const { redisClient, rateLimitByIp, rateLimitByUser } = require('../lib/redis')
 
 const router = Router()
 
@@ -15,7 +16,7 @@ const router = Router()
  * GET /courses
  * Route to fetch list of courses
  */
-router.get('/', async (req, res, next) => {
+router.get('/', rateLimitByIp, async (req, res, next) => {
     const { subject, number, term } = req.query
 
     let filterConditions = {}
@@ -96,7 +97,7 @@ router.get('/', async (req, res, next) => {
  * POST /courses
  * Route to create new course
  */
-router.post('/', requireAuthentication, async (req, res, next) => {
+router.post('/', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     if (req.role !== 'admin') {
         res.status(403).send({
             error: "Not authorized to access the specified resource"
@@ -119,7 +120,7 @@ router.post('/', requireAuthentication, async (req, res, next) => {
  * GET /courses/{id}
  * Route to fetch info of specific course
  */
-router.get('/:courseId', async (req, res, next) => {
+router.get('/:courseId', rateLimitByIp, async (req, res, next) => {
     const { courseId } = req.params
     try {
         const course = await Course.findByPk(courseId)
@@ -137,7 +138,7 @@ router.get('/:courseId', async (req, res, next) => {
  * PATCH /courses/{id}
  * Route to update info of specific course
  */
-router.patch('/:id', requireAuthentication, async (req, res, next) => {
+router.patch('/:id', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     // first verify that user is authorized to access resource
     let authorized = false
     if (req.role === 'admin' ) {
@@ -179,7 +180,7 @@ router.patch('/:id', requireAuthentication, async (req, res, next) => {
  * DELETE /courses/{id}
  * Route to delete course
  */
-router.delete('/:courseId', requireAuthentication, async (req, res, next) => {
+router.delete('/:courseId', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     if (req.role !== 'admin') {
         res.status(403).send({
             error: "Not authorized to access the specified resource"
@@ -211,23 +212,41 @@ router.delete('/:courseId', requireAuthentication, async (req, res, next) => {
  * GET /courses/{id}/students
  * get a list of students in a course
  */
-router.get('/courses/:id/students', async (req, res) => {
-    try {
-        const course = await Course.findByPk(req.params.id, {
-            include: [{
-                model: User,
-                as: 'users',
-                through: { model: Enrollment, attributes: [] }, 
-                where: { role: 'student' }
-            }]
-        });
-        if (course) {
-            res.json(course.users); 
-        } else {
-            res.status(404).send('Course not found');
+router.get('/:id/students', requireAuthentication, rateLimitByUser, async (req, res, next) => {
+    // first verify that user is authorized to access resource
+    let authorized = false
+    if (req.role === 'admin' ) {
+        authorized = true
+    } else if (req.role == 'instructor') {
+        const course = await Course.findOne({ where: { id: req.params.id, instructorId: req.user }})
+        if (!course)
+            next()
+        else
+            authorized = true
+    }
+
+    if (authorized) {
+        try {
+            const course = await Course.findByPk(req.params.id, {
+                include: [{
+                    model: User,
+                    as: 'users',
+                    through: { model: Enrollment, attributes: [] }, 
+                    where: { role: 'student' }
+                }]
+            });
+            if (course) {
+                res.status(200).send(course.users); 
+            } else {
+                next()
+            }
+        } catch (error) {
+            next(error)
         }
-    } catch (error) {
-        res.status(500).send(error.message);
+    } else {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
     }
 });
 
@@ -236,37 +255,56 @@ router.get('/courses/:id/students', async (req, res) => {
  * Post /courses/{id}/students
  * Adds or Removes students to a course and adds or removes that course for the student.
  */
-router.post('/courses/:id/students', async (req, res) => {
-    const courseId = req.params.id;
-    const { add, remove } = req.body;
+router.post('/:id/students', requireAuthentication, rateLimitByUser, async (req, res, next) => {
+    // first verify that user is authorized to access resource
+    let authorized = false
+    if (req.role === 'admin' ) {
+        authorized = true
+    } else if (req.role == 'instructor') {
+        const course = await Course.findOne({ where: { id: req.params.id, instructorId: req.user }})
+        if (!course)
+            next()
+        else
+            authorized = true
+    }
 
-    try {
-        // Remove students
-        if (remove && remove.length) {
-            await Enrollment.destroy({
-                where: {
+    if (authorized) {
+    
+        const courseId = req.params.id;
+        const { add, remove } = req.body;
+    
+        try {
+            // Remove students
+            if (remove && remove.length) {
+                await Enrollment.destroy({
+                    where: {
+                        courseId: courseId,
+                        userId: remove
+                    },
+                    transaction: transaction
+                });
+            }
+    
+            // Add students
+            if (add && add.length) {
+                const newEnrollments = add.map(userId => ({
                     courseId: courseId,
-                    userId: remove
-                },
-                transaction: transaction
-            });
+                    userId: userId
+                }));
+                await Enrollment.bulkCreate(newEnrollments);
+            }
+            res.status(201).send('Updated roster successfully');
+        } catch (error) {
+            if (error.name === 'SequelizeForeignKeyConstraintError') {
+                next()
+            } else {
+                next(error)
+            }
         }
-
-        // Add students
-        if (add && add.length) {
-            const newEnrollments = add.map(userId => ({
-                courseId: courseId,
-                userId: userId
-            }));
-            await Enrollment.bulkCreate(newEnrollments);
-        }
-        res.status(201).send('Updated roster successfully');
-    } catch (error) {
-        if (error.name === 'SequelizeForeignKeyConstraintError') {
-            res.status(404).send('Invalid course ID or student ID');
-        } else {
-            res.status(500).send(error.message);
-        }
+    } else {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
     }
 });
 
@@ -275,31 +313,49 @@ router.post('/courses/:id/students', async (req, res) => {
  * GET /courses/{id}/roster
  * get a list of students in a course and adds them to a CSV file to download.
  */
-router.get('/courses/:id/roster', async (req, res) => {
-    try {
-        const course = await Course.findByPk(req.params.id, {
-            include: [{
-                model: User,
-                as: 'users', 
-                attributes: ['id', 'name', 'email'], 
-                through: { model: Enrollment, attributes: [] },
-                where: { role: 'student' }
-            }]
-        });
-        if (course) {
+router.get('/:id/roster', requireAuthentication, rateLimitByUser, async (req, res, next) => {
+    // first verify that user is authorized to access resource
+    let authorized = false
+    if (req.role === 'admin' ) {
+        authorized = true
+    } else if (req.role == 'instructor') {
+        const course = await Course.findOne({ where: { id: req.params.id, instructorId: req.user }})
+        if (!course)
+            next()
+        else
+            authorized = true
+    }
 
-            const fields = ['id', 'name', 'email'];
-            const csv = parse(course.users, {fields});
+    if (authorized) {
+        try {
+            const course = await Course.findByPk(req.params.id, {
+                include: [{
+                    model: User,
+                    as: 'users', 
+                    attributes: ['id', 'name', 'email'], 
+                    through: { model: Enrollment, attributes: [] },
+                    where: { role: 'student' }
+                }]
+            });
+            if (course) {
 
-            res.header('Content-Type', 'text/csv');
-            res.attachment('roster.csv');
-            res.send(csv);
-            
-        } else {
-            res.status(404).send('Course not found');
+                const fields = ['id', 'name', 'email'];
+                const csv = parse(course.users, {fields});
+
+                res.header('Content-Type', 'text/csv');
+                res.attachment('roster.csv');
+                res.status(200).send(csv);
+                
+            } else {
+                next()
+            }
+        } catch (error) {
+            next(error)
         }
-    } catch (error) {
-        res.status(500).send(error.message);
+    } else {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
     }
 });
 
@@ -308,14 +364,15 @@ router.get('/courses/:id/roster', async (req, res) => {
  * GET /courses/{id}/assignments
  * get a list of assignments in a course
  */
-router.get('/courses/:id/assignments', async (req, res) => {
+router.get('/:id/assignments', rateLimitByIp, async (req, res, next) => {
     try {
         const assignments = await Assignment.findAll({
             where: { courseId: req.params.id }
         });
-        res.json(assignments);
+        res.status(200).send(assignments);
     } catch (error) {
-        res.status(500).send(error.message);
+        next(error)
     }
 });
+
 module.exports = router

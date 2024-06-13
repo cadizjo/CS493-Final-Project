@@ -6,6 +6,7 @@ const { Course } = require('../models/course')
 const { Enrollment } = require('../models/enrollment')
 
 const { generateAuthToken, requireAuthentication } = require('../lib/auth')
+const { redisClient, rateLimitByIp, rateLimitByUser } = require('../lib/redis')
 
 const router = Router()
 
@@ -20,7 +21,7 @@ function requireAuthenticationForAdmin(req, res, next) {
 /*
  * Route to register a new user.
  */
-router.post('/', requireAuthenticationForAdmin, async function (req, res, next) {
+router.post('/', requireAuthenticationForAdmin, rateLimitByIp, async function (req, res, next) {
     if ((req.body.role === 'admin' || req.body.role === 'instructor') && req.role !== 'admin') {
         res.status(403).send({
             error: "Not authorized to create admin or instructor user while logged in as a user without admin privilege"
@@ -43,7 +44,7 @@ router.post('/', requireAuthenticationForAdmin, async function (req, res, next) 
 /*
  * Route to login.
  */
-router.post('/login', async function (req, res, next) {
+router.post('/login', rateLimitByIp, async function (req, res, next) {
     try {
         const authenticated = await validateCredentials(req.body.email, req.body.password)
         if (authenticated) {
@@ -65,7 +66,7 @@ router.post('/login', async function (req, res, next) {
 /*
  * Route to fetch info about a specific user.
  */
-router.get('/:userId', requireAuthentication, async function (req, res, next) {
+router.get('/:userId', requireAuthentication, rateLimitByUser, async function (req, res, next) {
     // first verify that user is authorized to access resource
     if (req.role !== 'admin' && req.user != req.params.userId) {
         res.status(403).send({
@@ -74,34 +75,26 @@ router.get('/:userId', requireAuthentication, async function (req, res, next) {
     }
     else {
         try {
-            const user = await User.findByPk(req.params.userId, { 
-                include: [Course]
-            })
+            let user = await User.findByPk(req.params.userId)
             if (user) {
-                let userInfoResponse = {
-                    name: user.name,
-                    email: user.email,
-                    role: user.role
-                }
-
                 if (user.role === 'instructor') {
-                    let courses = []
-                    for (let course in user.courses) {
-                        courses.push(course.id)
-                    }
-                    userInfoResponse.courses = courses
+                    const courses = await Course.findAll({ where: {instructorId: req.params.userId }})
+                    res.status(200).send({...user.dataValues, courses: courses })
                 }
                 else if (user.role === 'student') {
-                    let courses = []
-
-                    const enrollments = await Enrollment.findAll({ where: { userId: user.id } })
-                    for (let enrollment in enrollments) {
-                        courses.push(enrollment.courseId)
-                    }
-                    userInfoResponse.courses = courses
+                    user = await User.findByPk(req.params.userId, {
+                        include: [{
+                            model: Course,
+                            as: 'courses',
+                            through: { model: Enrollment, attributes: [] }
+                        }]
+                    })
+                    res.status(200).send(user)
                 }
-
-                res.status(200).send(userInfoResponse)
+                else {
+                    res.status(200).send(user)
+                }
+                
             } else {
                 next()
             }

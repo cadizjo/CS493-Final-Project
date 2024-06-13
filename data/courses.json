@@ -1,37 +1,107 @@
 [
     {
-        "subject": "MATH",
-        "number": "101",
-        "title": "geometry",
-        "term": "fall",
-        "instructorId": "4"
-    },
-    {
-        "subject": "MATH",
-        "number": "222",
-        "title": "geometry 2",
-        "term": "winter",
-        "instructorId": "4"
-    },
-    {
-        "subject": "SCI",
-        "number": "211",
-        "title": "physics",
-        "term": "fall",
-        "instructorId": "5"
-    },
-    {
-        "subject": "HIST",
-        "number": "111",
-        "title": "american history",
-        "term": "fall",
-        "instructorId": "6"
+        "subject": "CS",
+        "number": "493",
+        "title": "Cloud Application Development",
+        "term": "sp24",
+        "instructorId": 3
     },
     {
         "subject": "CS",
-        "number": "101",
-        "title": "programming",
-        "term": "fall",
-        "instructorId": "7"
+        "number": "362",
+        "title": "Software Engineering II",
+        "term": "sp24",
+        "instructorId": 3
+    },
+    {
+        "subject": "CS",
+        "number": "494",
+        "title": "Advanced Web Development",
+        "term": "win23",
+        "instructorId": 3
+    },
+    {
+        "subject": "CS",
+        "number": "492",
+        "title": "Mobile Application Development",
+        "term": "win23",
+        "instructorId": 3
+    },
+    {
+        "subject": "CS",
+        "number": "312",
+        "title": "System Administration",
+        "term": "sp24",
+        "instructorId": 4
+    },
+    {
+        "subject": "CS",
+        "number": "475",
+        "title": "Intro to Parallel Programming",
+        "term": "sp24",
+        "instructorId": 5
+    },
+    {
+        "subject": "CS",
+        "number": "440",
+        "title": "Database Management Systems",
+        "term": "win23",
+        "instructorId": 6
+    },
+    {
+        "subject": "ST",
+        "number": "314",
+        "title": "Intro to Statistics",
+        "term": "fall22",
+        "instructorId": 4
+    },
+    {
+        "subject": "WR",
+        "number": "214",
+        "title": "Business Writing",
+        "term": "fall22",
+        "instructorId": 7
+    },
+    {
+        "subject": "WR",
+        "number": "327",
+        "title": "Technical Writing",
+        "term": "fall22",
+        "instructorId": 7
+    },
+    {
+        "subject": "CS",
+        "number": "450",
+        "title": "Intro to Computer Graphics",
+        "term": "fall24",
+        "instructorId": 5
+    },
+    {
+        "subject": "CS",
+        "number": "381",
+        "title": "Programming Language Fundamentals",
+        "term": "fall24",
+        "instructorId": 6
+    },
+    {
+        "subject": "CS",
+        "number": "370",
+        "title": "Intro to Security",
+        "term": "fall24",
+        "instructorId": 6
+    },
+    {
+        "subject": "CS",
+        "number": "444",
+        "title": "Operating Systems II",
+        "term": "sp24",
+        "instructorId": 5
+    },
+    {
+        "subject": "CS",
+        "number": "374",
+        "title": "Operating Systems I",
+        "term": "fall23",
+        "instructorId": 5
     }
 ]

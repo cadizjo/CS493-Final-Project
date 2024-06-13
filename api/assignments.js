@@ -7,10 +7,12 @@ const { Course } = require('../models/course')
 const { ValidationError } = require('sequelize')
 
 const { requireAuthentication } = require('../lib/auth')
+const { redisClient, rateLimitByIp, rateLimitByUser } = require('../lib/redis')
+const { Enrollment } = require('../models/enrollment')
 
 const router = Router()
 
-router.post('/', requireAuthentication, async (req, res, next) => {
+router.post('/', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     // first verify that user is authorized to access resource
     let authorized = false
     if (req.role === 'admin' ) {
@@ -40,7 +42,7 @@ router.post('/', requireAuthentication, async (req, res, next) => {
     }
 })
 
-router.get('/:assignmentId', async (req, res, next) => {
+router.get('/:assignmentId', rateLimitByIp, async (req, res, next) => {
     const { assignmentId } = req.params
     try {
         const assignment = await Assignment.findByPk(assignmentId)
@@ -55,7 +57,7 @@ router.get('/:assignmentId', async (req, res, next) => {
 });
 
 
-router.patch('/:assignmentId', requireAuthentication, async (req, res, next) => {
+router.patch('/:assignmentId', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     const { assignmentId } = req.params
     let result = null
 
@@ -64,7 +66,7 @@ router.patch('/:assignmentId', requireAuthentication, async (req, res, next) => 
     if (req.role === 'admin' ) {
         authorized = true
     } else if (req.role === 'instructor') {
-        const assignment = await Assignment.findByPk(assignmentId, { include: Course })
+        const assignment = await Assignment.findByPk(assignmentId, { include: [ Course ] })
         if (!assignment) {
             next()
         }
@@ -100,7 +102,7 @@ router.patch('/:assignmentId', requireAuthentication, async (req, res, next) => 
 });
 
 
-router.delete('/:assignmentId', requireAuthentication, async (req, res, next) => {
+router.delete('/:assignmentId', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     const { assignmentId } = req.params
     let result = null
 
@@ -109,7 +111,7 @@ router.delete('/:assignmentId', requireAuthentication, async (req, res, next) =>
     if (req.role === 'admin' ) {
         authorized = true
     } else if (req.role === 'instructor') {
-        const assignment = await Assignment.findByPk(assignmentId, { include: Course })
+        const assignment = await Assignment.findByPk(assignmentId, { include: [ Course ] })
         if (!assignment) {
             next()
         }
@@ -141,8 +143,7 @@ router.delete('/:assignmentId', requireAuthentication, async (req, res, next) =>
     }
 });
 
-router.get('/:assignmentId/submissions', requireAuthentication, async (req, res, next) => {
-    // requires authentication
+router.get('/:assignmentId/submissions', requireAuthentication, rateLimitByUser, async (req, res, next) => {
     const { assignmentId } = req.params
     const { studentId } = req.query
 
@@ -241,38 +242,57 @@ router.get('/:assignmentId/submissions', requireAuthentication, async (req, res,
     }
 })
 
-router.post('/:assignmentId/submissions', upload.single("file"), async (req, res, next) => {
-    // requires authentication
+router.post('/:assignmentId/submissions', requireAuthentication, rateLimitByUser, upload.single("file"), async (req, res, next) => {
+    // authentication
     const { assignmentId } = req.params
-    if (req.file && req.body) {
-        try {
-            const submission = await Submission.create(
-                {
-                    filename: req.file.filename,
-                    path: req.file.path,
-                    contentType: req.file.mimetype,
-                    assignmentId: assignmentId,
-                    timestamp: new Date().toISOString(),
-                    ...req.body
-                },
-                SubmissionClientFields
-            )
-            res.status(201).send({ id: submission.id })
 
-        } catch(e) {
-            if (e instanceof ValidationError) {
-                res.status(400).send({
-                    error: "Request needs assignmentId and studentId"
-                })
-            } else {
-                next(e)
+    let authorized = false
+    if (req.role === 'student' ) {
+        const assignment = await Assignment.findByPk(assignmentId)
+        if (!assignment) {
+            next()
+        }
+        if (await Enrollment.findOne({ where: {courseId: assignment.courseId, userId: req.user} }))
+            authorized = true
+    }
+
+    if (authorized) {
+        if (req.file && req.body) {
+            try {
+                const submission = await Submission.create(
+                    {
+                        filename: req.file.filename,
+                        path: req.file.path,
+                        contentType: req.file.mimetype,
+                        assignmentId: assignmentId,
+                        timestamp: new Date().toISOString(),
+                        ...req.body
+                    },
+                    SubmissionClientFields
+                )
+                res.status(201).send({ id: submission.id })
+    
+            } catch(e) {
+                if (e instanceof ValidationError) {
+                    res.status(400).send({
+                        error: "Request needs assignmentId and studentId"
+                    })
+                } else {
+                    next(e)
+                }
             }
+        } else {
+            res.status(400).send({
+                error: "Request needs a valid 'file'"
+            })
         }
     } else {
-        res.status(400).send({
-            error: "Request needs a valid 'file'"
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
         })
     }
+    
+    
 })
 
 module.exports = router
