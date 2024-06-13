@@ -1,9 +1,13 @@
 const { Router } = require('express')
 
-const { Course, CourseClientFields } = require('../models/course')
-const { ValidationError } = require('sequelize')
+const {Course, CourseClientFields} = require('../models/course');
+const {Assignment} = require('../models/assignment');
+const {Enrollment} = require('../models/enrollment');
+const {User} = require('../models/user');
+const { parse } = require('json2csv');
+const { ValidationError } = require('sequelize');
 
-const { requireAuthentication } = require('../lib/auth')
+const { requireAuthentication } = require('../lib/auth');
 
 const router = Router()
 
@@ -201,4 +205,100 @@ router.delete('/:courseId', requireAuthentication, async (req, res, next) => {
     }
 });
 
+
+
+/*
+ * GET /courses/{id}/students
+ * get a list of students in a course
+ */
+router.get('/courses/:id/students', async (req, res) => {
+    try {
+        const course = await Course.findByPk(req.params.id, {
+            include: [{
+                model: User,
+                as: 'users',
+                through: { model: Enrollment, attributes: [] }, 
+                where: { role: 'student' }
+            }]
+        });
+        if (course) {
+            res.json(course.users); 
+        } else {
+            res.status(404).send('Course not found');
+        }
+    } catch (error) {
+        res.status(500).send(error.message);
+    }
+});
+
+
+/*
+ * Post /courses/{id}/students
+ * Adds a student to a course and adds that course to the student.
+ */
+router.post('/courses/:id/students', async (req, res) => {
+    try {
+        const { studentId } = req.body;
+        const enrollment = await Enrollment.create({
+            userId: studentId,
+            courseId: req.params.id
+        });
+        res.status(201).json(enrollment);
+    } catch (error) {
+        if (error.name === 'SequelizeForeignKeyConstraintError') {
+            res.status(404).send('Invalid course ID or student ID');
+        } else {
+            res.status(500).send(error.message);
+        }
+    }
+});
+
+
+/*
+ * GET /courses/{id}/roster
+ * get a list of students in a course and adds them to a CSV file to download.
+ */
+router.get('/courses/:id/roster', async (req, res) => {
+    try {
+        const course = await Course.findByPk(req.params.id, {
+            include: [{
+                model: User,
+                as: 'users', 
+                attributes: ['id', 'name', 'email'], 
+                through: { model: Enrollment, attributes: [] },
+                where: { role: 'student' }
+            }]
+        });
+        if (course) {
+
+            const fields = ['id', 'name', 'email'];
+            const csv = parse(course.users, {fields});
+
+            res.header('Content-Type', 'text/csv');
+            res.attachment('roster.csv');
+            res.send(csv);
+            
+        } else {
+            res.status(404).send('Course not found');
+        }
+    } catch (error) {
+        res.status(500).send(error.message);
+    }
+});
+
+
+/*
+ * GET /courses/{id}/assignments
+ * get a list of assignments in a course
+ */
+router.get('/courses/:id/assignments', async (req, res) => {
+    try {
+        const assignments = await Assignment.findAll({
+            where: { courseId: req.params.id }
+        });
+        res.json(assignments);
+    } catch (error) {
+        res.status(500).send(error.message);
+    }
+});
 module.exports = router
