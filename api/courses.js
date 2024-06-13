@@ -1,10 +1,17 @@
 const { Router } = require('express')
+const { ValidationError } = require('sequelize')
 
 const {Course, CourseClientFields} = require('../models/course');
 
+const { requireAuthentication } = require('../lib/auth')
+
 const router = Router()
 
-router.get('/courses', async (req, res) => {
+/*
+ * GET /courses
+ * Route to fetch list of courses
+ */
+router.get('/', async (req, res, next) => {
     const { page = 1, limit = 10 } = req.query;
     try {
         const { count, rows } = await Course.findAndCountAll({
@@ -18,62 +25,112 @@ router.get('/courses', async (req, res) => {
             currentPage: parseInt(page)
         });
     } catch (error) {
-        res.status(500).send(error.message);
+        next(error)
     }
 });
 
+/*
+ * POST /courses
+ * Route to create new course
+ */
+router.post('/', requireAuthentication, async (req, res, next) => {
+    if (req.role !== 'admin') {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
+    } else {
+        try {
+            const course = await Course.create(req.body, CourseClientFields);
+            res.status(201).json(course);
+        } catch (error) {
+            if (error instanceof ValidationError) {
+                res.status(400).send({ error: error.message })
+            } else {
+                next(error)
+            }
+        }
+    }
+});
 
-router.get('/courses/:id', async (req, res) => {
+/*
+ * GET /courses/{id}
+ * Route to fetch info of specific course
+ */
+router.get('/:id', async (req, res, next) => {
     try {
         const course = await Course.findByPk(req.params.id);
         if (course) {
             res.json(course);
         } else {
-            res.status(404).send('Course not found');
+            next()
         }
     } catch (error) {
-        res.status(500).send(error.message);
+        next(error)
     }
 });
 
-
-router.post('/courses', async (req, res) => {
-    try {
-        const course = await Course.create(req.body, CourseClientFields);
-        res.status(201).json(course);
-    } catch (error) {
-        res.status(400).send(error.message);
+/*
+ * PATCH /courses/{id}
+ * Route to update info of specific course
+ */
+router.patch('/:id', requireAuthentication, async (req, res, next) => {
+    // first verify that user is authorized to access resource
+    let authorized = false
+    if (req.role === 'admin' ) {
+        authorized = true
+    } else if (req.role == 'instructor') {
+        if (await Course.findOne({ where: { id: req.params.id, instructorId: req.user }}))
+            authorized = true
     }
-});
 
-
-router.patch('/courses/:id', async (req, res) => {
-    try {
-        const updated = await Course.update(req.body, {
-            where: { id: req.params.id }
-        });
-        if (updated[0] > 0) {
-            res.json(await Course.findByPk(req.params.id));
-        } else {
-            res.status(404).send('Course not found');
+    if (authorized) {
+        try {
+            const updated = await Course.update(req.body, {
+                where: { id: req.params.id }
+            });
+            if (updated[0] > 0) {
+                res.json(await Course.findByPk(req.params.id));
+            } else {
+                next()
+            }
+        } catch (error) {
+            if (error instanceof ValidationError) {
+                res.status(400).send({ error: error.message })
+            } else {
+                next(error)
+            }
         }
-    } catch (error) {
-        res.status(400).send(error.message);
+    } else {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
     }
 });
 
 
-router.delete('/courses/:id', async (req, res) => {
-    try {
-        const deleted = await Course.destroy({
-            where: { id: req.params.id }
-        });
-        if (deleted) {
-            res.status(204).send();
-        } else {
-            res.status(404).send('Course not found');
+/*
+ * DELETE /courses/{id}
+ * Route to delete course
+ */
+router.delete('/:id', requireAuthentication, async (req, res, next) => {
+    if (req.role !== 'admin') {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
+    } else {
+        try {
+            const deleted = await Course.destroy({
+                where: { id: req.params.id }
+            });
+            if (deleted) {
+                res.status(204).send();
+            } else {
+                next()
+            }
+        } catch (error) {
+            next(error)
         }
-    } catch (error) {
-        res.status(500).send(error.message);
     }
 });
+
+module.exports = router
