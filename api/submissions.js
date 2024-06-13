@@ -16,8 +16,8 @@ router.patch('/:submissionId', requireAuthentication, async (req, res, next) => 
     if (req.role === 'admin' ) {
         authorized = true
     } else if (req.role === 'instructor') {
-        const submission = await Submission.findByPk(submissionId, { include: Assignment })
-        if ( submission && await Course.findByPk(submission.assignment.courseId).instructorId == req.user) {
+        const submission = await Submission.findByPk(submissionId, { include: [ Assignment ] })
+        if ( submission && await Course.findByPk(submission.assignmentId.courseId).instructorId == req.user) {
             authorized = true
         }
     }
