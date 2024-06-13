@@ -1,34 +1,56 @@
 const { Router } = require('express')
 const { Submission } = require('../models/submission');
+const { Assignment } = require('../models/assignment');
+const { Course } = require('../models/course');
+
+const { requireAuthentication } = require('../lib/auth')
 
 const router = Router()
 
-router.patch('/:submissionId', async (req, res, next) => {
+router.patch('/:submissionId', requireAuthentication, async (req, res, next) => {
     const { submissionId } = req.params
     let result = null
-    try {
-        result = await Submission.findByPk(submissionId)
-        if (result == null) {
-            next()
-        } else {
-            result = await Submission.update(req.body, {
-                where: { id: submissionId },
-                fields: [
-                    'assignmentId',
-                    'studentId',
-                    'timestamp',
-                    'grade',
-                    'file'
-                ]
-            })
-            if (result[0] > 0) {
-                res.status(204).send()
-            } else {
-                next()
-            }
+
+    // first verify that user is authorized to access resource
+    let authorized = false
+    if (req.role === 'admin' ) {
+        authorized = true
+    } else if (req.role === 'instructor') {
+        const submission = await Submission.findByPk(submissionId, { include: Assignment })
+        if ( submission && await Course.findByPk(submission.assignment.courseId).instructorId == req.user) {
+            authorized = true
         }
-    } catch (e) {
-        next(e)
+    }
+    
+    if (authorized) {
+        try {
+            result = await Submission.findByPk(submissionId)
+            if (result == null) {
+                next()
+            } else {
+                result = await Submission.update(req.body, {
+                    where: { id: submissionId },
+                    fields: [
+                        'assignmentId',
+                        'studentId',
+                        'timestamp',
+                        'grade',
+                        'file'
+                    ]
+                })
+                if (result[0] > 0) {
+                    res.status(204).send()
+                } else {
+                    next()
+                }
+            }
+        } catch (e) {
+            next(e)
+        }
+    } else {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
     }
 });
 

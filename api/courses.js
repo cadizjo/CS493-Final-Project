@@ -3,10 +3,15 @@ const { Router } = require('express')
 const { Course, CourseClientFields } = require('../models/course')
 const { ValidationError } = require('sequelize')
 
+const { requireAuthentication } = require('../lib/auth')
+
 const router = Router()
 
+/*
+ * GET /courses
+ * Route to fetch list of courses
+ */
 router.get('/', async (req, res, next) => {
-    // requires authentication
     const { subject, number, term } = req.query
 
     let filterConditions = {}
@@ -83,20 +88,33 @@ router.get('/', async (req, res, next) => {
     }
 });
 
-router.post('/', async (req, res, next) => {
-    try {
-        const course = await Course.create(req.body, CourseClientFields);
-        res.status(201).send({ id: course.id })
-    } catch (e) {
-        if (e instanceof ValidationError) {
-            res.status(400).send({ error: e.message })
-        } else {
-            next(e)
+/*
+ * POST /courses
+ * Route to create new course
+ */
+router.post('/', requireAuthentication, async (req, res, next) => {
+    if (req.role !== 'admin') {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
+    } else {
+        try {
+            const course = await Course.create(req.body, CourseClientFields);
+            res.status(201).json(course);
+        } catch (error) {
+            if (error instanceof ValidationError) {
+                res.status(400).send({ error: error.message })
+            } else {
+                next(error)
+            }
         }
     }
 });
 
-
+/*
+ * GET /courses/{id}
+ * Route to fetch info of specific course
+ */
 router.get('/:courseId', async (req, res, next) => {
     const { courseId } = req.params
     try {
@@ -111,48 +129,72 @@ router.get('/:courseId', async (req, res, next) => {
     }
 })
 
+/*
+ * PATCH /courses/{id}
+ * Route to update info of specific course
+ */
+router.patch('/:id', requireAuthentication, async (req, res, next) => {
+    // first verify that user is authorized to access resource
+    let authorized = false
+    if (req.role === 'admin' ) {
+        authorized = true
+    } else if (req.role == 'instructor') {
+        if (await Course.findOne({ where: { id: req.params.id, instructorId: req.user }}))
+            authorized = true
+    }
 
-router.patch('/:courseId', async (req, res, next) => {
-    const { courseId } = req.params
-    let result = null
-    try {
-        result = await Course.findByPk(courseId)
-        if (result == null) {
-            next()
-        } else {
-            result = await Course.update(req.body, {
-                where: { id: courseId },
+    if (authorized) {
+        try {
+            const updated = await Course.update(req.body, {
+                where: { id: req.params.id },
                 fields: CourseClientFields
-            })
-            if (result[0] > 0) {
+            });
+            if (updated[0] > 0) {
                 res.status(204).send()
             } else {
                 next()
             }
+        } catch (error) {
+            if (error instanceof ValidationError) {
+                res.status(400).send({ error: error.message })
+            } else {
+                next(error)
+            }
         }
-    } catch (e) {
-        next(e)
+    } else {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
     }
 });
 
-
-router.delete('/:courseId', async (req, res, next) => {
-    const { courseId } = req.params
-    let result = null
-    try {
-        result = await Course.findByPk(courseId)
-        if (result == null) {
-            next()
-        } else {
-            result = await Course.destroy({ where: { id: courseId } })
-            if (result > 0) {
-                res.status(204).send()
-            } else {
+/*
+ * DELETE /courses/{id}
+ * Route to delete course
+ */
+router.delete('/:courseId', requireAuthentication, async (req, res, next) => {
+    if (req.role !== 'admin') {
+        res.status(403).send({
+            error: "Not authorized to access the specified resource"
+        })
+    } else {
+        const { courseId } = req.params
+        let result = null
+        try {
+            result = await Course.findByPk(courseId)
+            if (result == null) {
                 next()
+            } else {
+                result = await Course.destroy({ where: { id: courseId } })
+                if (result > 0) {
+                    res.status(204).send()
+                } else {
+                    next()
+                }
             }
+        } catch (e) {
+            next(e)
         }
-    } catch (e) {
-        next(e)
     }
 });
 
