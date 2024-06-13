@@ -4,7 +4,9 @@ const path = require('path');
 const { upload } = require('../lib/multer');
 
 
-Router.patch('/submissions/:id', async (req, res) => {
+const router = Router();
+
+router.patch('/submissions/:id', async (req, res) => {
     const { grade } = req.body; 
     try {
         const submission = await Submission.findByPk(req.params.id);
@@ -23,7 +25,7 @@ Router.patch('/submissions/:id', async (req, res) => {
 });
 
 
-Router.get('media/submissions/:filename', async (req, res) => {
+router.get('media/submissions/:filename', async (req, res) => {
     try {
         const filename = req.params.filename;
         const submission = await Submission.findOne({
