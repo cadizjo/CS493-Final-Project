@@ -18,6 +18,9 @@ app.use(express.json())
  */
 app.use('/', api)
 
+// middleware to download static submissions in server's filesystem
+app.use("/media/submissions", express.static(`${__dirname}/lib/submissions`))
+
 /*
  * Resource not found
  */
