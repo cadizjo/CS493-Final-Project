@@ -207,7 +207,10 @@ router.delete('/:courseId', requireAuthentication, async (req, res, next) => {
 
 
 
-
+/*
+ * GET /courses/{id}/students
+ * get a list of students in a course
+ */
 router.get('/courses/:id/students', async (req, res) => {
     try {
         const course = await Course.findByPk(req.params.id, {
@@ -229,6 +232,10 @@ router.get('/courses/:id/students', async (req, res) => {
 });
 
 
+/*
+ * Post /courses/{id}/students
+ * Adds a student to a course and adds that course to the student.
+ */
 router.post('/courses/:id/students', async (req, res) => {
     try {
         const { studentId } = req.body;
@@ -247,6 +254,10 @@ router.post('/courses/:id/students', async (req, res) => {
 });
 
 
+/*
+ * GET /courses/{id}/roster
+ * get a list of students in a course and adds them to a CSV file to download.
+ */
 router.get('/courses/:id/roster', async (req, res) => {
     try {
         const course = await Course.findByPk(req.params.id, {
@@ -276,6 +287,10 @@ router.get('/courses/:id/roster', async (req, res) => {
 });
 
 
+/*
+ * GET /courses/{id}/assignments
+ * get a list of assignments in a course
+ */
 router.get('/courses/:id/assignments', async (req, res) => {
     try {
         const assignments = await Assignment.findAll({
