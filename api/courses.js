@@ -139,7 +139,10 @@ router.patch('/:id', requireAuthentication, async (req, res, next) => {
     if (req.role === 'admin' ) {
         authorized = true
     } else if (req.role == 'instructor') {
-        if (await Course.findOne({ where: { id: req.params.id, instructorId: req.user }}))
+        const course = await Course.findOne({ where: { id: req.params.id, instructorId: req.user }})
+        if (!course)
+            next()
+        else
             authorized = true
     }
 
