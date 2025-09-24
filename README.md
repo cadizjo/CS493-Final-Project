@@ -14,6 +14,9 @@ It allows instructors and students to interact with courses, assignments, and su
 
 Think of it as a **lightweight Canvas alternative** with modern API practices, including authentication, authorization, file handling, pagination, and rate limiting.
 
+> You can load the file: `openapi.yaml` into the [Swagger Editor](https://editor.swagger.io)  
+> to see automatically-generated documentation for all the API endpoints.
+
 ---
 
 ## ✨ Features
